@@ -60,28 +60,20 @@ public class ExpressionNodeRegistry {
     }
 
     /**
-     * Discover all ExpressionNode implementations in the classpath.
+     * Discover all ExpressionNode implementations in the classpath
+     * by recursively scanning a single base package.
      */
     public static List<NodeDescriptor> discoverAllNodes() {
         List<NodeDescriptor> descriptors = new ArrayList<>();
-        String[] packages = {
-            "usace.hec.expressions",
-            "usace.hec.expressions.math",
-            "usace.hec.expressions.logical",
-            "usace.hec.expressions.comparison",
-            "usace.hec.expressions.time",
-            "usace.hec.expressions.misc"
-        };
-        for (String pkg : packages) {
-            descriptors.addAll(discoverInPackage(pkg));
-        }
+        // Only specify the root package once; subpackages are scanned automatically
+        descriptors.addAll(discoverInPackageRecursively("usace.hec.expressions"));
         return descriptors.stream()
                 .sorted(Comparator.comparing(NodeDescriptor::getCategory)
                         .thenComparing(NodeDescriptor::getOpName))
                 .collect(Collectors.toList());
     }
 
-    private static List<NodeDescriptor> discoverInPackage(String packageName) {
+    private static List<NodeDescriptor> discoverInPackageRecursively(String packageName) {
         List<NodeDescriptor> results = new ArrayList<>();
         String path = packageName.replace('.', '/');
         try {
@@ -90,9 +82,9 @@ public class ExpressionNodeRegistry {
                 URL resource = resources.nextElement();
                 String protocol = resource.getProtocol();
                 if ("file".equals(protocol)) {
-                    results.addAll(scanDirectory(new File(resource.getFile()), packageName));
+                    results.addAll(scanDirectoryRecursively(new File(resource.getFile()), packageName));
                 } else if ("jar".equals(protocol)) {
-                    results.addAll(scanJar(resource, path, packageName));
+                    results.addAll(scanJarRecursively(resource, path, packageName));
                 }
             }
         } catch (Exception e) {
@@ -101,22 +93,18 @@ public class ExpressionNodeRegistry {
         return results;
     }
 
-    private static List<NodeDescriptor> scanDirectory(File dir, String packageName) {
+    private static List<NodeDescriptor> scanDirectoryRecursively(File dir, String packageName) {
         List<NodeDescriptor> results = new ArrayList<>();
         if (dir.isDirectory()) {
-            File[] files = dir.listFiles((d, name) -> name.endsWith(".class"));
+            File[] files = dir.listFiles();
             if (files != null) {
                 for (File file : files) {
-                    String className = packageName + "." + file.getName().replace(".class", "");
-                    try {
-                        Class<?> clazz = Class.forName(className);
-                        if (ExpressionNode.class.isAssignableFrom(clazz) && 
-                            !clazz.isInterface() && 
-                            !Modifier.isAbstract(clazz.getModifiers())) {
-                            results.addAll(analyzeClass(clazz, packageName));
-                        }
-                    } catch (ClassNotFoundException | NoClassDefFoundError e) {
-                        // Skip classes that can't be loaded
+                    if (file.isFile() && file.getName().endsWith(".class")) {
+                        String className = packageName + "." + file.getName().replace(".class", "");
+                        results.addAll(analyzeClassQuietly(className));
+                    } else if (file.isDirectory()) {
+                        // Recurse into subdirectories
+                        results.addAll(scanDirectoryRecursively(file, packageName + "." + file.getName()));
                     }
                 }
             }
@@ -124,7 +112,7 @@ public class ExpressionNodeRegistry {
         return results;
     }
 
-    private static List<NodeDescriptor> scanJar(URL url, String packagePath, String packageName) throws IOException {
+    private static List<NodeDescriptor> scanJarRecursively(URL url, String basePackagePath, String basePackageName) throws IOException {
         List<NodeDescriptor> results = new ArrayList<>();
         JarURLConnection conn = (JarURLConnection) url.openConnection();
         try (JarFile jarFile = conn.getJarFile()) {
@@ -132,30 +120,33 @@ public class ExpressionNodeRegistry {
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
                 if (!entry.getName().endsWith(".class")) continue;
-                
-                // Check if it's in the target package
-                if (entry.getName().startsWith(packagePath + "/")) {
-                    String className = entry.getName().replace('/', '.');
-                    className = className.substring(0, className.length() - 6); // remove .class
-                    
-                    // Only direct children of the package, not subpackages
-                    String simplePart = className.substring(packageName.length() + 1);
-                    if (simplePart.indexOf('.') != -1) continue;
 
-                    try {
-                        Class<?> clazz = Class.forName(className);
-                        if (ExpressionNode.class.isAssignableFrom(clazz) && 
-                            !clazz.isInterface() && 
-                            !Modifier.isAbstract(clazz.getModifiers())) {
-                            results.addAll(analyzeClass(clazz, packageName));
-                        }
-                    } catch (ClassNotFoundException | NoClassDefFoundError e) {
-                        // Skip
-                    }
+                String entryName = entry.getName();
+                // Check if it's in the target base package (includes all subpackages)
+                if (entryName.startsWith(basePackagePath + "/")) {
+                    String className = entryName.replace('/', '.');
+                    className = className.substring(0, className.length() - 6); // remove .class
+                    results.addAll(analyzeClassQuietly(className));
                 }
             }
         }
         return results;
+    }
+
+    private static List<NodeDescriptor> analyzeClassQuietly(String className) {
+        try {
+            Class<?> clazz = Class.forName(className);
+            if (ExpressionNode.class.isAssignableFrom(clazz) && 
+                !clazz.isInterface() && 
+                !Modifier.isAbstract(clazz.getModifiers())) {
+                // Use the actual class's package name for category derivation
+                String packageName = clazz.getPackageName();
+                return analyzeClass(clazz, packageName);
+            }
+        } catch (ClassNotFoundException | NoClassDefFoundError e) {
+            // Skip classes that can't be loaded
+        }
+        return new ArrayList<>();
     }
 
     private static List<NodeDescriptor> analyzeClass(Class<?> clazz, String packageName) {
