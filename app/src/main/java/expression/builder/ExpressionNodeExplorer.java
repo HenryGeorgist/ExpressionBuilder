@@ -133,12 +133,9 @@ public class ExpressionNodeExplorer {
     private Class<?> guessExpressionType(String text) {
         String lower = text.toLowerCase().trim();
         
-        if (lower.contains("true") || lower.contains("false") || 
-            lower.contains(" and ") || lower.contains(" or ") || lower.contains(" not ") ||
-            lower.contains(" eq ") || lower.contains(" ne ") || lower.contains(" gt ") || 
-            lower.contains(" lt ") || lower.contains(" ge ") || lower.contains(" le ") ||
-            lower.contains("==") || lower.contains("!=") || lower.contains(">=") || lower.contains("<=") ||
-            lower.contains(">") || lower.contains("<")) {
+        if (lower.startsWith("and") || lower.startsWith("or") || lower.startsWith("not") ||
+            lower.startsWith("eq") || lower.startsWith("ne") || lower.startsWith("gt") || 
+            lower.startsWith("lt") || lower.startsWith("ge") || lower.startsWith("le")) {
             return Boolean.class;
         }
         
