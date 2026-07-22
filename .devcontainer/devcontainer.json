@@ -22,8 +22,5 @@
   "runArgs": [
     "--ipc=host"
   ],
-  "containerEnv": {
-    "JAVA_HOME": "/usr/local/sdkman/candidates/java/25-open"
-  },
   "remoteUser": "vscode"
 }

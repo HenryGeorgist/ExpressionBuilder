@@ -1,7 +1,6 @@
 plugins {
     java
     application
-    id("org.openjfx.javafxplugin") version "0.0.13"
 }
 
 group = "usace.hec"
@@ -16,15 +15,7 @@ repositories {
 
 dependencies {
     implementation("mil.army.usace.hec:expressions:1.0.2")
-    
-    // JavaFX UI Toolkit
-    implementation("org.openjfx:javafx-controls:21")
-    implementation("org.openjfx:javafx-fxml:21")
-}
-
-javafx {
-    version = "21"
-    modules = listOf("javafx.controls", "javafx.fxml")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
 }
 
 java {
@@ -34,5 +25,9 @@ java {
 }
 
 application {
-    mainClass.set("usace.hec.ui.ExpressionNodeExplorer")
+    mainClass.set("expression.builder.App")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

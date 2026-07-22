@@ -15,9 +15,8 @@ public class App {
 
     public static void main(String[] args) {
 
-        Application.launch(ExpressionNodeExplorer.class, args);
-        // 1. Set the System Look and Feel (optional, but recommended)
-        /*try {
+        Application.launch(ExpressionNodeExplorer.class, args);        // 1. Set the System Look and Feel (optional, but recommended)
+        try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
             // Fallback to default Metal look and feel
@@ -31,7 +30,7 @@ public class App {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        });*/
+        });
     }
 
     private static void createAndShowGUI() {
