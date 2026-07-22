@@ -5,7 +5,13 @@
             "type": "java",
             "name": "Run ExpressionNodeExplorer",
             "request": "launch",
-            "mainClass": "usace.hec.ui.ExpressionNodeExplorer"
+            "mainClass": "expression.builder.ExpressionNodeExplorer"
+        },
+        {
+            "type": "java",
+            "name": "Run Expression Wizard",
+            "request": "launch",
+            "mainClass": "expression.builder.App"
         }
     ]
 }
