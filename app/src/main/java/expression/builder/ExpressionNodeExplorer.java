@@ -1,93 +1,120 @@
 package usace.hec.ui;
 
-import javafx.application.Application;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
-import javafx.collections.transformation.FilteredList;
-import javafx.geometry.Insets;
-import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
-import javafx.stage.Stage;
-
+import javax.swing.*;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableRowSorter;
+import java.awt.*;
 import java.util.List;
 import java.util.Map;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
-public class ExpressionNodeExplorer extends Application {
+public class ExpressionNodeExplorer {
     public static void main(String[] args) {
-        // This line starts the JavaFX application
-        Application.launch(ExpressionNodeExplorer.class, args);
+        // Swing must run on the Event Dispatch Thread (EDT)
+        SwingUtilities.invokeLater(() -> {
+            try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } 
+            catch (Exception e) { e.printStackTrace(); }
+            new ExpressionNodeExplorer().createAndShowGUI();
+        });
     }
-    @Override
-    public void start(Stage primaryStage) {
-        // 1. Discover nodes using the reflection scanner
+
+    private void createAndShowGUI() {
         List<Map<String, String>> rawNodes = ExpressionNodeConsoleApp.discoverNodes();
-        ObservableList<Map<String, String>> data = FXCollections.observableArrayList(rawNodes);
-        FilteredList<Map<String, String>> filteredData = new FilteredList<>(data, p -> true);
+        if (rawNodes == null) rawNodes = List.of();
 
-        // 2. Build UI Controls
-        TextField searchField = new TextField();
-        searchField.setPromptText("Filter by name, operator, or category...");
-        searchField.setPrefWidth(300);
+        JFrame frame = new JFrame("HEC ExpressionNode Explorer");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(650, 450);
+        frame.setLocationRelativeTo(null);
 
-        TableView<Map<String, String>> table = new TableView<>();
-        table.setPrefHeight(400);
+        // 1. Table Model
+        NodeTableModel model = new NodeTableModel(rawNodes);
+        JTable table = new JTable(model);
+        table.setFillsViewportHeight(true);
+        
+        // Column widths
+        table.getColumnModel().getColumn(0).setPreferredWidth(100); // Category
+        table.getColumnModel().getColumn(1).setPreferredWidth(160); // Class
+        table.getColumnModel().getColumn(2).setPreferredWidth(120); // Operator
+        table.getColumnModel().getColumn(3).setPreferredWidth(80);  // Infix
+        table.getColumnModel().getColumn(4).setPreferredWidth(100); // Type
 
-        // Table Columns
-        TableColumn<Map<String, String>, String> catCol = new TableColumn<>("Category");
-        catCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().get("category")));
-        catCol.setPrefWidth(100);
+        // 2. Filtering Setup
+        TableRowSorter<NodeTableModel> sorter = new TableRowSorter<>(model);
+        table.setRowSorter(sorter);
 
-        TableColumn<Map<String, String>, String> nameCol = new TableColumn<>("Class");
-        nameCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().get("simpleName")));
-        nameCol.setPrefWidth(160);
+        JTextField searchField = new JTextField(20);
+        setupPrompt(searchField, "Filter by name, operator, or category...");
+        
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent e) { applyFilter(); }
+            @Override public void removeUpdate(DocumentEvent e) { applyFilter(); }
+            @Override public void changedUpdate(DocumentEvent e) { applyFilter(); }
 
-        TableColumn<Map<String, String>, String> opCol = new TableColumn<>("Operator");
-        opCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().get("opName")));
-        opCol.setPrefWidth(120);
-
-        TableColumn<Map<String, String>, String> infixCol = new TableColumn<>("Infix");
-        infixCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().get("infixName")));
-        infixCol.setPrefWidth(80);
-
-        TableColumn<Map<String, String>, String> typeCol = new TableColumn<>("Type");
-        typeCol.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().get("type")));
-        typeCol.setPrefWidth(100);
-
-        table.getColumns().addAll(catCol, nameCol, opCol, infixCol, typeCol);
-        table.setItems(filteredData);
-
-        // Search Filtering
-        searchField.textProperty().addListener((obs, old, newVal) -> {
-            String lower = newVal.toLowerCase();
-            filteredData.setPredicate(node -> 
-                node.get("simpleName").toLowerCase().contains(lower) ||
-                node.get("opName").toLowerCase().contains(lower) ||
-                node.get("category").toLowerCase().contains(lower) ||
-                node.get("infixName").toLowerCase().contains(lower)
-            );
+            private void applyFilter() {
+                String text = searchField.getText();
+                if (text.isEmpty()) {
+                    sorter.setRowFilter(null);
+                } else {
+                    String lower = text.toLowerCase();
+                    sorter.setRowFilter((row) -> {
+                        for (int i = 0; i < model.getColumnCount(); i++) {
+                            String val = String.valueOf(model.getValueAt(row.getIndex(), i));
+                            if (val.toLowerCase().contains(lower)) return true;
+                        }
+                        return false;
+                    });
+                }
+            }
         });
 
         // 3. Layout
-        VBox controls = new VBox(10, new Label("ExpressionNode Explorer"), searchField);
-        controls.setPadding(new Insets(10));
-        controls.setStyle("-fx-background-color: #f8f9fa;");
+        JPanel controls = new JPanel(new BorderLayout(10, 5));
+        controls.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        controls.add(new JLabel("ExpressionNode Explorer"), BorderLayout.WEST);
+        controls.add(searchField, BorderLayout.CENTER);
 
-        BorderPane root = new BorderPane();
-        root.setTop(controls);
-        root.setCenter(table);
-        root.setPadding(new Insets(10));
+        frame.setLayout(new BorderLayout());
+        frame.add(controls, BorderLayout.NORTH);
+        frame.add(new JScrollPane(table), BorderLayout.CENTER);
 
-        Scene scene = new Scene(root, 650, 450);
-        primaryStage.setTitle("HEC ExpressionNode Explorer");
-        primaryStage.setScene(scene);
-        primaryStage.show();
+        frame.setVisible(true);
+    }
+    
+    // Helper to mimic JavaFX promptText in Swing
+    private void setupPrompt(JTextField field, String prompt) {
+        field.setText(prompt);
+        field.setForeground(Color.GRAY);
+        field.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override public void focusGained(java.awt.event.FocusEvent e) {
+                if (field.getText().equals(prompt)) {
+                    field.setText("");
+                    field.setForeground(Color.BLACK);
+                }
+            }
+            @Override public void focusLost(java.awt.event.FocusEvent e) {
+                if (field.getText().isEmpty()) {
+                    field.setText(prompt);
+                    field.setForeground(Color.GRAY);
+                }
+            }
+        });
     }
 
-    public static void main(String[] args) {
-        // Launches the JavaFX stage on the FX Application Thread
-        Application.launch(ExpressionNodeExplorer.class, args);
+    // Custom TableModel wrapping List<Map<String, String>>
+    static class NodeTableModel extends AbstractTableModel {
+        private final List<Map<String, String>> data;
+        private final String[] columns = {"Category", "Class", "Operator", "Infix", "Type"};
+        private final String[] keys = {"category", "simpleName", "opName", "infixName", "type"};
+
+        NodeTableModel(List<Map<String, String>> data) {
+            this.data = data;
+        }
+
+        @Override public int getRowCount() { return data.size(); }
+        @Override public int getColumnCount() { return columns.length; }
+        @Override public String getColumnName(int col) { return columns[col]; }
+        @Override public Object getValueAt(int row, int col) { return data.get(row).get(keys[col]); }
     }
 }
