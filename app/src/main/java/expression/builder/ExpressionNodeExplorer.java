@@ -32,16 +32,13 @@ public class ExpressionNodeExplorer {
 
         textBox = new ExpressionNodeTextBox();
 
-        // Wire up the text-update callback: when user edits and exits,
-        // re-parse the text and update the evaluation label.
+        // Wire up the text-update callback
         textBox.setTextUpdateListener((text) -> {
             try {
                 currentExpression = parseExpressionText(text);
                 updateEvaluationLabel();
             } catch (Exception e) {
-                currentExpression = null;
-                evaluationLabel.setText("Evaluation: Parse error (" + e.getClass().getSimpleName() + ")");
-                evaluationLabel.setForeground(new Color(0xD3, 0x2F, 0x2F));
+                handleExpressionError(e, "Parse error");
             }
         });
 
@@ -56,31 +53,19 @@ public class ExpressionNodeExplorer {
         bottomPanel.add(evaluationLabel, BorderLayout.NORTH);
         bottomPanel.add(textBox, BorderLayout.CENTER);
 
-        // Wire the tree to insert at cursor, then re-parse the full expression
+        // Wire the tree to insert at cursor, then re-parse
         ExpressionNodeTreeView treeView = new ExpressionNodeTreeView(nodes, (descriptor) -> {
             try {
                 ExpressionNode<?> newNode = instantiateNodeWithDefaults(descriptor.getClazz());
-                
-                // 1. Insert the new node at the current cursor position
                 textBox.insertNodeAtCursor(newNode);
                 
-                // 2. Re-parse the entire updated text to get the full expression tree
                 String fullText = textBox.getExpression().trim();
                 if (!fullText.isEmpty()) {
-                    try {
-                        currentExpression = parseExpressionText(fullText);
-                    } catch (Exception e) {
-                        // If the library's parser fails (e.g., operator name/format mismatch),
-                        // fall back to the freshly instantiated node. It is guaranteed valid.
-                        currentExpression = newNode;
-                    }
+                    currentExpression = parseExpressionText(fullText);
                     updateEvaluationLabel();
                 }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                currentExpression = null;
-                evaluationLabel.setText("Evaluation: Instantiation error (" + ex.getClass().getSimpleName() + ")");
-                evaluationLabel.setForeground(new Color(0xD3, 0x2F, 0x2F));
+            } catch (Exception e) {
+                handleExpressionError(e, "Insert/Parse error");
             }
         });
 
@@ -94,6 +79,27 @@ public class ExpressionNodeExplorer {
         frame.setVisible(true);
     }
 
+    /**
+     * Centralized error handler for expression parsing/evaluation failures.
+     * Ensures the UI remains responsive and provides clear, actionable feedback.
+     */
+    private void handleExpressionError(Exception e, String context) {
+        String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        
+        // Unwrap reflection exceptions to get the actual library error message
+        if (e instanceof java.lang.reflect.InvocationTargetException) {
+            Throwable cause = e.getCause();
+            if (cause != null) {
+                errorMsg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+            }
+        }
+        
+        // Show the exact error in the label so the user knows what to fix
+        evaluationLabel.setText("Evaluation: " + context + " (" + errorMsg + ")");
+        evaluationLabel.setForeground(new Color(0xD3, 0x2F, 0x2F));
+        currentExpression = null; // Clear to force re-parse on next successful edit
+    }
+
     private void updateEvaluationLabel() {
         if (currentExpression != null) {
             try {
@@ -101,8 +107,7 @@ public class ExpressionNodeExplorer {
                 evaluationLabel.setText("Evaluation: " + (result != null ? result : "null"));
                 evaluationLabel.setForeground(new Color(0x4C, 0xAF, 0x50));
             } catch (Exception e) {
-                evaluationLabel.setText("Evaluation: Error (" + e.getClass().getSimpleName() + ")");
-                evaluationLabel.setForeground(new Color(0xD3, 0x2F, 0x2F));
+                handleExpressionError(e, "Eval error");
             }
         } else {
             evaluationLabel.setText("Evaluation: N/A");
@@ -118,21 +123,21 @@ public class ExpressionNodeExplorer {
             Method method = ExpressionNode.class.getMethod("fromPreFixSyntax", String.class, Class.class);
             return (ExpressionNode<?>) method.invoke(null, text, returnType);
         } catch (NoSuchMethodException e) {
-            throw new RuntimeException("ExpressionNode.fromPreFixSyntax(String, Class) not found in library.", e);
+            throw new RuntimeException("Library API missing: ExpressionNode.fromPreFixSyntax", e);
         } catch (java.lang.reflect.InvocationTargetException e) {
-            // Unwrap the library's parsing exception (e.g., IllegalArgumentException: Unknown operator)
-            //throw e.getCause();
-            throw new Exception(e.getMessage());
+            // Unwrap to preserve the original library exception message for the UI
+            throw e;
         }
     }
 
     private Class<?> guessExpressionType(String text) {
-        String lower = text.toLowerCase();
+        String lower = text.toLowerCase().trim();
         
         if (lower.contains("true") || lower.contains("false") || 
             lower.contains(" and ") || lower.contains(" or ") || lower.contains(" not ") ||
-            lower.contains("==") || lower.contains("!=") || 
-            lower.contains(">=") || lower.contains("<=") ||
+            lower.contains(" eq ") || lower.contains(" ne ") || lower.contains(" gt ") || 
+            lower.contains(" lt ") || lower.contains(" ge ") || lower.contains(" le ") ||
+            lower.contains("==") || lower.contains("!=") || lower.contains(">=") || lower.contains("<=") ||
             lower.contains(">") || lower.contains("<")) {
             return Boolean.class;
         }
