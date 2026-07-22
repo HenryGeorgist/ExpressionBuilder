@@ -10,7 +10,6 @@ import javax.swing.*;
 import usace.hec.expressions.ExpressionNode;
 
 public class ExpressionNodeExplorer {
-    /** The full expression tree, parsed from the text area content. */
     private ExpressionNode<?> currentExpression;
     private ExpressionNodeTextBox textBox;
     private JLabel evaluationLabel;
@@ -57,20 +56,31 @@ public class ExpressionNodeExplorer {
         bottomPanel.add(evaluationLabel, BorderLayout.NORTH);
         bottomPanel.add(textBox, BorderLayout.CENTER);
 
-        // Wire the tree to instantiate the node with dummy children and update the UI
+        // Wire the tree to insert at cursor, then re-parse the full expression
         ExpressionNodeTreeView treeView = new ExpressionNodeTreeView(nodes, (descriptor) -> {
             try {
                 ExpressionNode<?> newNode = instantiateNodeWithDefaults(descriptor.getClazz());
-                // Replace the entire text with the new node's syntax
-                currentExpression = newNode;
-                textBox.setNodeText(newNode);
-                updateEvaluationLabel();
+                
+                // 1. Insert the new node at the current cursor position
+                textBox.insertNodeAtCursor(newNode);
+                
+                // 2. Re-parse the entire updated text to get the full expression tree
+                String fullText = textBox.getExpression().trim();
+                if (!fullText.isEmpty()) {
+                    try {
+                        currentExpression = parseExpressionText(fullText);
+                    } catch (Exception e) {
+                        // If the library's parser fails (e.g., operator name/format mismatch),
+                        // fall back to the freshly instantiated node. It is guaranteed valid.
+                        currentExpression = newNode;
+                    }
+                    updateEvaluationLabel();
+                }
             } catch (Exception ex) {
                 ex.printStackTrace();
                 currentExpression = null;
-                textBox.setNodeText(null);
-                evaluationLabel.setText("Evaluation: N/A (Failed to instantiate)");
-                evaluationLabel.setForeground(Color.GRAY);
+                evaluationLabel.setText("Evaluation: Instantiation error (" + ex.getClass().getSimpleName() + ")");
+                evaluationLabel.setForeground(new Color(0xD3, 0x2F, 0x2F));
             }
         });
 
@@ -84,9 +94,6 @@ public class ExpressionNodeExplorer {
         frame.setVisible(true);
     }
 
-    /**
-     * Updates only the evaluation label based on currentExpression.
-     */
     private void updateEvaluationLabel() {
         if (currentExpression != null) {
             try {
@@ -103,30 +110,25 @@ public class ExpressionNodeExplorer {
         }
     }
 
-    /**
-     * Parses the given text into an ExpressionNode tree using fromPreFixSyntax.
-     * The return type is automatically guessed based on the text content.
-     */
     @SuppressWarnings("unchecked")
     private ExpressionNode<?> parseExpressionText(String text) throws Exception {
         Class<?> returnType = guessExpressionType(text);
         
-        // Use reflection to safely invoke the library's parsing method
         try {
             Method method = ExpressionNode.class.getMethod("fromPreFixSyntax", String.class, Class.class);
             return (ExpressionNode<?>) method.invoke(null, text, returnType);
         } catch (NoSuchMethodException e) {
             throw new RuntimeException("ExpressionNode.fromPreFixSyntax(String, Class) not found in library.", e);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            // Unwrap the library's parsing exception (e.g., IllegalArgumentException: Unknown operator)
+            //throw e.getCause();
+            throw new Exception(e.getMessage());
         }
     }
 
-    /**
-     * Guesses the expected return type of an expression based on its text content.
-     */
     private Class<?> guessExpressionType(String text) {
         String lower = text.toLowerCase();
         
-        // Boolean indicators: literals, logical operators, or comparison operators
         if (lower.contains("true") || lower.contains("false") || 
             lower.contains(" and ") || lower.contains(" or ") || lower.contains(" not ") ||
             lower.contains("==") || lower.contains("!=") || 
@@ -135,19 +137,13 @@ public class ExpressionNodeExplorer {
             return Boolean.class;
         }
         
-        // String indicators: quoted values
         if (text.contains("\"") || text.contains("'")) {
             return String.class;
         }
         
-        // Default to numerical (covers most math expressions)
         return Double.class;
     }
 
-    /**
-     * Instantiates an ExpressionNode class, automatically providing dummy child nodes
-     * with default values based on the generic type T.
-     */
     @SuppressWarnings("unchecked")
     private ExpressionNode<?> instantiateNodeWithDefaults(Class<? extends ExpressionNode<?>> clazz) throws Exception {
         TypeVariable<?>[] typeParams = clazz.getTypeParameters();
@@ -188,9 +184,6 @@ public class ExpressionNodeExplorer {
         }
     }
 
-    /**
-     * Creates a dummy ConstantLeafNode with a default value based on the target type T.
-     */
     @SuppressWarnings("unchecked")
     private ExpressionNode<?> createDummyLeaf(Class<?> type) throws Exception {
         Class<?> leafClass = Class.forName("usace.hec.expressions.ConstantLeafNode");
@@ -201,7 +194,6 @@ public class ExpressionNodeExplorer {
         } else if (type == String.class) {
             value = "";
         } else {
-            // Default for numbers (Double, Float, Integer, Long)
             value = 0.0;
         }
 
