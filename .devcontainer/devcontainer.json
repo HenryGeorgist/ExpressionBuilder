@@ -1,0 +1,29 @@
+{
+  "name": "Java UI Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/desktop-lite:1": {
+      "version": "latest",
+      "password": "vscode",
+      "webPort": "6080",
+      "vncPort": "5901"
+    }
+  },
+  "forwardPorts": [6080, 5901],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack"
+      ]
+    }
+  },
+  "runArgs": [
+    "--ipc=host"
+  ],
+  "containerEnv": {
+    "JAVA_HOME": "/usr/local/sdkman/candidates/java/25-open"
+  },
+  "remoteUser": "vscode"
+}
