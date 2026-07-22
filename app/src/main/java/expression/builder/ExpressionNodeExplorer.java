@@ -118,16 +118,7 @@ public class ExpressionNodeExplorer {
     @SuppressWarnings("unchecked")
     private ExpressionNode<?> parseExpressionText(String text) throws Exception {
         Class<?> returnType = guessExpressionType(text);
-        
-        try {
-            Method method = ExpressionNode.class.getMethod("fromPreFixSyntax", String.class, Class.class);
-            return (ExpressionNode<?>) method.invoke(null, text, returnType);
-        } catch (NoSuchMethodException e) {
-            throw new RuntimeException("Library API missing: ExpressionNode.fromPreFixSyntax", e);
-        } catch (java.lang.reflect.InvocationTargetException e) {
-            // Unwrap to preserve the original library exception message for the UI
-            throw e;
-        }
+        return ExpressionNode.fromPreFixSyntax(text, (Class) returnType);
     }
 
     private Class<?> guessExpressionType(String text) {
