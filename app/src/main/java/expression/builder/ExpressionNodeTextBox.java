@@ -24,24 +24,32 @@ public class ExpressionNodeTextBox extends JPanel {
         add(new JScrollPane(textArea), BorderLayout.CENTER);
     }
 
-    public void insertAtCursor(String text) {
-        int offset = textArea.getCaretPosition();
-        textArea.replaceRange(text, offset, offset);
-        textArea.setCaretPosition(offset + text.length());
-        textArea.requestFocusInWindow();
-    }
-
+    /**
+     * Converts the node to PreFixSyntax and inserts/replaces text at the caret position.
+     */
     public void insertNodeAtCursor(ExpressionNode<?> node) {
+        String syntax = "";
         if (node != null) {
             try {
-                // Use the library's PreFixSyntax method as requested
-                String syntax = node.PreFixSyntax();
-                insertAtCursor(syntax);
+                syntax = node.PreFixSyntax();
             } catch (Exception e) {
-                // Fallback if method signature differs or throws
-                insertAtCursor(node.getClass().getSimpleName() + "()");
+                syntax = node.getClass().getSimpleName() + "()";
             }
         }
+        insertText(syntax);
+    }
+
+    private void insertText(String text) {
+        if (text == null) return;
+        
+        int start = textArea.getSelectionStart();
+        int end = textArea.getSelectionEnd();
+        
+        // replaceRange handles both cursor insertion (start == end) 
+        // and selection replacement (start != end)
+        textArea.replaceRange(text, start, end);
+        textArea.setCaretPosition(start + text.length());
+        textArea.requestFocusInWindow();
     }
 
     public String getExpression() {

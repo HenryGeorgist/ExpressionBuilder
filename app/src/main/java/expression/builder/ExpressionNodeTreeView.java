@@ -8,10 +8,9 @@ import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeSelectionModel;
-import usace.hec.expressions.ExpressionNode;
 
 public class ExpressionNodeTreeView extends JPanel {
-    public ExpressionNodeTreeView(List<ExpressionNodeRegistry.NodeDescriptor> nodes, Consumer<ExpressionNode<?>> onNodeSelected) {
+    public ExpressionNodeTreeView(List<ExpressionNodeRegistry.NodeDescriptor> nodes, Consumer<ExpressionNodeRegistry.NodeDescriptor> onNodeSelected) {
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createTitledBorder("Operator Hierarchy"));
 
@@ -42,14 +41,7 @@ public class ExpressionNodeTreeView extends JPanel {
                 String opName = selectedNode.getUserObject().toString();
                 for (ExpressionNodeRegistry.NodeDescriptor n : nodes) {
                     if (n.getOpName().equals(opName)) {
-                        try {
-                            // Attempt to instantiate the discovered ExpressionNode class
-                            ExpressionNode<?> instance = (ExpressionNode<?>) n.getClazz().getDeclaredConstructor().newInstance();
-                            onNodeSelected.accept(instance);
-                        } catch (Exception ex) {
-                            // Some nodes require children in constructor; pass null and let caller handle fallback
-                            onNodeSelected.accept(null);
-                        }
+                        onNodeSelected.accept(n);
                         break;
                     }
                 }
